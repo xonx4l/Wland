@@ -77,10 +77,73 @@ impl Dispatch<wl::output::WLOutput, ()> for AppData {
                 println!("  Model: {}", model);
                 println!("  Transform: {:?}", transform);
             }
+
+            wl_output::Event::Mode {
+                flags,
+                width,
+                height,
+                refresh,
+            } => {
+                println!("Output Mode:");
+                println!("    Resolution: {}x{}", height, width);
+                println!("    Refresh rate: {} Hz" refresh as f64 / 1000.0);
+                println!("    Flags: {:?}", flags);
+            }
+
+            wl_output::Event::Done => {
+                println!("Output configuration complete");
+            }
+            wl_output::Event::Scale {factor} => {
+                println!("Output scale factor: {}", factor);
+            }
+            wl_output::Event::Name {name} => {
+                println!("Output name : {}", name);
+            }
+            wl_output::Event::Description {description} => {
+                println!("Output description: {}", description);
+            }
+            _=> {}
         }
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-          Ok(())
+        let conn = Connection::connect_to_env()?;
+
+        let mut event_queue = conn.new_event_queue();
+        let qh = event_queue.handle();
+
+        let app_data = Rc::new(RefCell::new(AppData {
+            globals: Vec::new(),
+            outputs: Vec::new(),
+        }));
+
+        let display = conn.display();
+        println("WlDisplay object created: {:?}", display);
+
+        let registry = display.get_registry(&qh, ());
+        println!("WlRegistry object created: {:?}", registry);
+
+        event_queue.roundtrip(&mut *app_data.borrow_mut())?;
+
+        {
+            let data = app.data.borrow();
+
+            println!("\n--- Wayland Global Registry Summary ---");
+            println!("Total globals found: {}", data.globals.len());
+            for (name, interface, version) in &data.globals {
+                println!("{}: {} (v{})", name, interface, version);
+            }
+            
+            println!("\n--- Wayland Outputs ---");
+            println!("Total outputs found: {}", data.outputs.len());
+            for (id, _) in &data.outputs {
+                println!("Output ID: {}", id);
+            }
+        }
+
+        event_queue.roundtrip(&mut *app_data.borrow_mut())?;
+
+        println!("\nWayland client completed successfully");
+        Ok(())
 }
